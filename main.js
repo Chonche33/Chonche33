@@ -328,38 +328,127 @@ async function applyTagToClips(index) {
   try {
     const project = await ppro.Project.getActiveProject();
     if (!project) {
-      log("Aucun projet actif.", "red");
+      log("❌ Aucun projet actif.", "red");
       return;
     }
 
     const sequence = await project.getActiveSequence();
     if (!sequence) {
-      log("Aucune séquence active.", "red");
+      log("❌ Aucune séquence active.", "red");
       return;
     }
 
-    const trackItems = await sequence.getSelection().getTrackItems();
+    // NOUVELLE MÉTHODE : Récupérer les clips sélectionnés dans la timeline
+    let trackItems = [];
+    
+    // Méthode 1: Essayer via sequence.getSelection()
+    if (typeof sequence.getSelection === 'function') {
+      try {
+        const selection = sequence.getSelection();
+        if (selection && typeof selection.getTrackItems === 'function') {
+          trackItems = await selection.getTrackItems();
+        }
+      } catch (error) {
+        console.log("Méthode 1 échouée, essayons la méthode 2...");
+      }
+    }
+    
+    // Méthode 2: Essayer via ppro.app.getSelection()
+    if (trackItems.length === 0 && typeof ppro.app !== 'undefined' && typeof ppro.app.getSelection === 'function') {
+      try {
+        const selection = await ppro.app.getSelection();
+        if (selection && selection.length > 0) {
+          trackItems = selection.filter(item => 
+            item && 
+            (item.type === "TrackItem" || 
+             (item.getProjectItem && typeof item.getProjectItem === 'function'))
+          );
+        }
+      } catch (error) {
+        console.log("Méthode 2 échouée, essayons la méthode 3...");
+      }
+    }
+    
+    // Méthode 3: Récupérer tous les track items de la séquence et vérifier la sélection
     if (trackItems.length === 0) {
-      log("Aucun clip sélectionné.", "red");
+      try {
+        // Récupérer toutes les pistes vidéo et audio
+        const videoTracks = sequence.videoTracks || [];
+        const audioTracks = sequence.audioTracks || [];
+        const allTracks = [...videoTracks, ...audioTracks];
+        
+        for (const track of allTracks) {
+          if (track && typeof track.getTrackItems === 'function') {
+            const items = await track.getTrackItems();
+            // Filtrer les items sélectionnés (si la propriété exists)
+            const selectedItems = items.filter(item => 
+              item && (item.isSelected === true || item.selected === true)
+            );
+            trackItems = [...trackItems, ...selectedItems];
+          }
+        }
+      } catch (error) {
+        console.log("Méthode 3 échouée:", error);
+      }
+    }
+    
+    // Méthode 4: Si toujours rien, prendre tous les clips de la séquence
+    if (trackItems.length === 0) {
+      try {
+        const videoTracks = sequence.videoTracks || [];
+        const audioTracks = sequence.audioTracks || [];
+        const allTracks = [...videoTracks, ...audioTracks];
+        
+        for (const track of allTracks) {
+          if (track && typeof track.getTrackItems === 'function') {
+            const items = await track.getTrackItems();
+            trackItems = [...trackItems, ...items];
+          }
+        }
+        
+        if (trackItems.length > 0) {
+          log("⚠️ Aucun clip explicitement sélectionné. Application du tag à TOUS les clips de la séquence.", "#FF9900");
+        }
+      } catch (error) {
+        console.log("Méthode 4 échouée:", error);
+      }
+    }
+
+    if (trackItems.length === 0) {
+      log("❌ Aucun clip trouvé dans la séquence. Sélectionne des clips dans la timeline.", "red");
       return;
     }
 
     const uniqueClips = new Map();
     for (const trackItem of trackItems) {
-      const projectItem = await trackItem.getProjectItem();
-      if (!uniqueClips.has(projectItem.name)) {
-        uniqueClips.set(projectItem.name, projectItem);
+      try {
+        const projectItem = await trackItem.getProjectItem();
+        if (projectItem && !uniqueClips.has(projectItem.name)) {
+          uniqueClips.set(projectItem.name, projectItem);
+        }
+      } catch (error) {
+        console.error("Erreur lors de la récupération du projectItem:", error);
       }
+    }
+
+    if (uniqueClips.size === 0) {
+      log("❌ Aucun clip valide trouvé.", "red");
+      return;
     }
 
     for (const [clipName, projectItem] of uniqueClips) {
       // Lire les métadonnées existantes
-      let metadata = await projectItem.getMetadata();
+      let metadata = {};
+      try {
+        const existingMetadata = await projectItem.getMetadata();
+        if (existingMetadata) {
+          metadata = existingMetadata;
+        }
+      } catch (error) {
+        console.log("Aucune métadonnée existante, création d'un nouvel objet.");
+      }
       
       // Créer un champ personnalisé pour les tags si inexistant
-      if (!metadata) {
-        metadata = {};
-      }
       if (!metadata["tag-master"]) {
         metadata["tag-master"] = "";
       }
@@ -371,19 +460,23 @@ async function applyTagToClips(index) {
         metadata["tag-master"] = updatedTags;
 
         // Écrire les métadonnées mises à jour
-        await projectItem.setMetadata(metadata);
-
-        // Mettre à jour le cache local
-        clipTags[clipName] = updatedTags;
-        log(`Tag ajouté à ${clipName} (métadonnées mises à jour)`, "#00FF00");
+        try {
+          await projectItem.setMetadata(metadata);
+          // Mettre à jour le cache local
+          clipTags[clipName] = updatedTags;
+          log(`✅ Tag ajouté à ${clipName} (métadonnées mises à jour)`, "#00FF00");
+        } catch (error) {
+          log(`❌ Erreur lors de l'écriture des métadonnées pour ${clipName}: ${error.message}`, "red");
+          console.error("Erreur setMetadata:", error);
+        }
       } else {
-        log(`Tag déjà présent pour ${clipName}`, "#FF9900");
+        log(`⚠️ Tag déjà présent pour ${clipName}`, "#FF9900");
       }
     }
     saveTags();
   } catch (error) {
-    log(`Erreur : ${error.message}`, "red");
-    console.error(error);
+    log(`❌ Erreur : ${error.message}`, "red");
+    console.error("Erreur complète dans applyTagToClips:", error);
   }
 }
 
