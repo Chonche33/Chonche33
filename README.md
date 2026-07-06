@@ -1,10 +1,12 @@
-- 👋 Hi, I’m @Chonche33
-- 👀 I’m interested in making people dreaming
-- 🌱 I’m currently learning programming
-- 💞️ I’m looking to collaborate on ...
-- 📫 How to reach me chonche33@hotmail.com
+# Starter Premiere Plugin
 
-<!---
-Chonche33/Chonche33 is a ✨ special ✨ repository because its `README.md` (this file) appears on your GitHub profile.
-You can click the Preview link to take a look at your changes.
---->
+This starter plugin is a good place to get started when developing for Premiere Pro. It does not rely on any frameworks or build steps.
+
+## Load into Premiere Pro
+
+Make sure Premiere Pro is up and running first. First, add the plugin to the "Developer Workspace" in the UXP Developer Tools (UDT) application.
+
+- If you selected "Create Plugin..." earlier, it will have already be there with the plugin ID and name you specified.
+- Otherwise, click "Add Plugin" and select the `manifest.json` file in the corresponding plugin folder.
+
+Click "Load" in the corresponding workspace entry. Switch over to Premiere Pro, and the plugin's panel will be showing. Also find it in the Window > UXP Plugins menu.

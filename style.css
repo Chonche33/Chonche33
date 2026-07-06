@@ -1,0 +1,124 @@
+/* Styles généraux */
+body {
+  padding: 0 16px;
+  font-family: Arial, sans-serif;
+  background-color: var(--uxp-host-background-color, #2a2a2a);
+  color: var(--uxp-host-text-color-primary, #ffffff);
+}
+
+#plugin-heading {
+  color: var(--uxp-host-text-color-secondary, white);
+  margin-bottom: 10px;
+}
+
+/* Section des logs (existante) */
+#plugin-body {
+  margin-top: 5px;
+  border: 1px solid #808080;
+  border-radius: 4px;
+  padding: 16px;
+  overflow: scroll;
+  height: 220px;
+  background-color: var(--uxp-host-background-color-secondary, #1e1e1e);
+  color: var(--uxp-host-text-color-primary, #ffffff);
+}
+
+/* Section des tags */
+.tag-section {
+  margin-bottom: 15px;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.input-group input,
+.input-group select {
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #555;
+  background-color: var(--uxp-host-background-color-secondary, #1e1e1e);
+  color: var(--uxp-host-text-color-primary, #ffffff);
+  font-size: 14px;
+}
+
+.input-group button {
+  padding: 8px;
+  border-radius: 4px;
+  border: none;
+  background-color: #0078d7;
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.input-group button:hover {
+  background-color: #005a9e;
+}
+
+/* Conteneur des tags */
+.tags-container {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+/* Style des tags */
+.tag {
+  padding: 8px;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  text-align: center;
+  transition: transform 0.1s;
+}
+
+.tag:hover {
+  transform: scale(1.02);
+}
+
+/* Pied de page (boutons existants) */
+footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+footer > * {
+  margin: 5px;
+}
+
+footer div {
+  width: 100%;
+  margin-bottom: 1em;
+}
+
+/* Style pour le conteneur principal */
+.main-div {
+  position: relative;
+}
+
+/* Style pour le bouton Clear (existant) */
+.clear-btn {
+  display: none;
+  position: absolute;
+  top: 10px;
+  right: 6px;
+  cursor: pointer;
+}
+
+.main-div:hover .clear-btn {
+  display: inline;
+}
+
+/* Style pour les listes (existant) */
+li:before {
+  content: "• ";
+  width: 3em;
+}

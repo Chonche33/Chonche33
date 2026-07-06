@@ -1,0 +1,20 @@
+{
+  "name": "tag-master",
+  "version": "1.0.0",
+  "description": "Un plugin pour Adobe Premiere Pro permettant de créer et appliquer des tags personnalisés avec des raccourcis clavier.",
+  "author": "patrick-olivier Rattis",
+  "license": "MIT",
+  "keywords": [
+    "premiere-pro",
+    "uxp",
+    "plugin",
+    "tags",
+    "markers",
+    "shortcuts"
+  ],
+  "homepage": "",
+  "repository": {
+    "type": "git",
+    "url": ""
+  }
+}
