@@ -69,9 +69,27 @@ async function showTagClips(tagText) {
   try {
     log(`=== Clips avec le tag "${tagText}" ===`, "#00FFFF");
 
-    const clipsWithTag = projectItemsList.filter(item => {
-      return clipTags[item.name] && clipTags[item.name].includes(tagText);
-    });
+    const project = await ppro.Project.getActiveProject();
+    if (!project) {
+      log("Aucun projet actif.", "red");
+      return;
+    }
+
+    const projectItems = await project.getProjectItems();
+    const clipsWithTag = [];
+
+    for (const item of projectItems) {
+      if (item.type === 1) { // Clip
+        try {
+          const metadata = await item.getMetadata();
+          if (metadata && metadata["tag-master"] && metadata["tag-master"].includes(tagText)) {
+            clipsWithTag.push(item);
+          }
+        } catch (error) {
+          console.error(`Erreur lecture métadonnées pour ${item.name}:`, error);
+        }
+      }
+    }
 
     if (clipsWithTag.length === 0) {
       log(`Aucun clip trouvé avec le tag "${tagText}".`, "#FF9900");
@@ -168,13 +186,28 @@ async function listProjectItems() {
     log(`Total : ${allItems.length} éléments`, "#00FFFF");
     log("--- Structure ---", "#00FFFF");
 
-    // Afficher la hiérarchie
+    // Afficher la hiérarchie et lire les métadonnées des clips
     for (const item of allItems) {
       if (item.type === 2) {
         await displayProjectItemHierarchy(item, 0);
+      } else if (item.type === 1) { // Clip
+        let type = "Clip";
+        let color = "#00FF00";
+        log(`📁 ${item.name} (${type})`, color);
+        
+        // Lire les métadonnées du clip
+        try {
+          const metadata = await item.getMetadata();
+          if (metadata && metadata["tag-master"]) {
+            clipTags[item.name] = metadata["tag-master"];
+            log(`  → Tags: ${metadata["tag-master"]}`, "#00FFFF");
+          }
+        } catch (error) {
+          console.error(`Erreur lecture métadonnées pour ${item.name}:`, error);
+        }
       } else {
-        let type = item.type === 1 ? "Clip" : item.type === 3 ? "Séquence" : "Autre";
-        let color = item.type === 1 ? "#00FF00" : item.type === 3 ? "#2196F3" : "#FFFFFF";
+        let type = item.type === 3 ? "Séquence" : "Autre";
+        let color = item.type === 3 ? "#2196F3" : "#FFFFFF";
         log(`📁 ${item.name} (${type})`, color);
       }
     }
@@ -320,11 +353,29 @@ async function applyTagToClips(index) {
     }
 
     for (const [clipName, projectItem] of uniqueClips) {
-      let currentTags = clipTags[clipName] || "";
+      // Lire les métadonnées existantes
+      let metadata = await projectItem.getMetadata();
+      
+      // Créer un champ personnalisé pour les tags si inexistant
+      if (!metadata) {
+        metadata = {};
+      }
+      if (!metadata["tag-master"]) {
+        metadata["tag-master"] = "";
+      }
+
+      // Ajouter le nouveau tag
+      let currentTags = metadata["tag-master"];
       if (!currentTags.includes(selectedTag.text)) {
         const updatedTags = currentTags ? `${currentTags}, ${selectedTag.text}` : selectedTag.text;
+        metadata["tag-master"] = updatedTags;
+
+        // Écrire les métadonnées mises à jour
+        await projectItem.setMetadata(metadata);
+
+        // Mettre à jour le cache local
         clipTags[clipName] = updatedTags;
-        log(`Tag ajouté à ${clipName}`, "#00FF00");
+        log(`Tag ajouté à ${clipName} (métadonnées mises à jour)`, "#00FF00");
       } else {
         log(`Tag déjà présent pour ${clipName}`, "#FF9900");
       }
