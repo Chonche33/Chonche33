@@ -1,6 +1,6 @@
 /*************************************************************************
- * Tag-Master Plugin for Premiere Pro (Version avec sélection du panneau Projet)
- * Basé sur la documentation Adobe UXP
+ * Tag-Master Plugin for Premiere Pro (Version simplifiée)
+ * Une seule méthode : project.getSelection() pour le panneau Projet
  *************************************************************************/
 
 const ppro = require("premierepro");
@@ -65,140 +65,52 @@ function deleteTag(index) {
   log(`Tag "${tagToDelete.text}" supprimé.`, "#FF0000");
 }
 
-// Fonction pour traiter la sélection (quel que soit le type)
-async function processSelection(selection) {
-  const items = [];
-
-  // Si selection est un tableau (ppro.app.getSelection ou project.getSelection)
-  if (Array.isArray(selection)) {
-    for (const item of selection) {
-      try {
-        // Si c'est déjà un ProjectItem
-        if (item.id && item.name && item.type) {
-          items.push({ id: item.id, name: item.name, type: item.type });
-        }
-        // Si c'est un TrackItem, récupérer le ProjectItem
-        else if (typeof item.getProjectItem === 'function') {
-          const projectItem = await item.getProjectItem();
-          items.push({ id: projectItem.id, name: projectItem.name, type: projectItem.type });
-        }
-      } catch (error) {
-        console.error("Erreur processSelection:", error);
-      }
-    }
-  }
-  // Si selection est un objet avec trackItems (sequence.getSelection)
-  else if (selection.trackItems) {
-    for (const trackItem of selection.trackItems) {
-      try {
-        if (typeof trackItem.getProjectItem === 'function') {
-          const projectItem = await trackItem.getProjectItem();
-          items.push({ id: projectItem.id, name: projectItem.name, type: projectItem.type });
-        }
-      } catch (error) {
-        console.error("Erreur processSelection:", error);
-      }
-    }
-  }
-
-  return items;
-}
-
-// Fonction pour lister les éléments sélectionnés dans le PANNEAU PROJET
-async function listProjectSelection() {
+// Fonction SIMPLE : Liste UNIQUEMENT les éléments sélectionnés dans le panneau Projet
+async function listSelectedProjectItems() {
   try {
+    // 1. Récupérer le projet actif
     const project = await ppro.Project.getActiveProject();
     if (!project) {
       log("❌ Aucun projet actif.", "red");
       return [];
     }
 
-    log("🔍 Récupération de la sélection du panneau Projet...", "#00FFFF");
+    // 2. Récupérer TA sélection dans le panneau Projet (1 seule méthode)
+    const selection = await project.getSelection();
 
-    // Méthode 1: Essayer project.getSelection() (sélection du panneau Projet)
-    if (typeof project.getSelection === 'function') {
-      const selection = await project.getSelection();
-      if (selection && selection.length > 0) {
-        log(`✅ ${selection.length} éléments sélectionnés dans le panneau Projet.`, "#00FF00");
-        return processSelection(selection);
-      }
-    }
-
-    // Méthode 2: Essayer ppro.app.getProjectSelection() (si disponible)
-    if (typeof ppro.app?.getProjectSelection === 'function') {
-      const selection = await ppro.app.getProjectSelection();
-      if (selection && selection.length > 0) {
-        log(`✅ ${selection.length} éléments sélectionnés (méthode getProjectSelection).`, "#00FF00");
-        return processSelection(selection);
-      }
-    }
-
-    // Méthode 3: Essayer ppro.app.getSelection() (sélection globale)
-    if (typeof ppro.app?.getSelection === 'function') {
-      const selection = await ppro.app.getSelection();
-      if (selection && selection.length > 0) {
-        log(`✅ ${selection.length} éléments sélectionnés (méthode globale).`, "#00FF00");
-        return processSelection(selection);
-      }
-    }
-
-    // Méthode 4: Essayer via la séquence active
-    const sequence = await project.getActiveSequence();
-    if (sequence && typeof sequence.getSelection === 'function') {
-      const selection = sequence.getSelection();
-      if (selection && selection.trackItems) {
-        log(`✅ ${selection.trackItems.length} clips sélectionnés dans la timeline.`, "#00FF00");
-        return processSelection(selection.trackItems);
-      }
-    }
-
-    // Méthode 5: Essayer project.getProjectItems() (si disponible)
-    if (typeof project.getProjectItems === 'function') {
-      const allItems = await project.getProjectItems();
-      log(`✅ ${allItems.length} éléments dans le projet (getProjectItems).`, "#00FF00");
-      return allItems.map(item => ({ id: item.id, name: item.name, type: item.type }));
-    }
-
-    log("❌ Aucune méthode n'a permis de récupérer la sélection. Sélectionnez des éléments dans le panneau Projet ou la timeline.", "red");
-    return [];
-
-  } catch (error) {
-    log(`❌ Erreur: ${error.message}`, "red");
-    console.error("Erreur dans listProjectSelection:", error);
-    return [];
-  }
-}
-
-// Fonction pour lister TOUS les éléments du projet via sélection manuelle
-async function listAllProjectItems() {
-  try {
-    log("📌 Veuillez sélectionner TOUS les éléments dans le PANNEAU PROJET (Ctrl+A/Cmd+A), puis cliquez ici.", "#FFFF00");
-    const items = await listProjectSelection();
-    
-    if (items.length === 0) {
-      log("❌ Aucune sélection trouvée. Sélectionnez des éléments d'abord.", "red");
+    // 3. Si la sélection existe et n'est pas vide, la retourner
+    if (selection && selection.length > 0) {
+      log(`✅ ${selection.length} éléments sélectionnés dans le panneau Projet.`, "#00FF00");
+      
+      // Retourner les éléments avec id, name, type
+      const items = selection.map(item => ({
+        id: item.id,
+        name: item.name,
+        type: item.type
+      }));
+      
+      // Sauvegarder la liste globale
+      projectItemsList = items;
+      localStorage.setItem("tagmaster-project-items", JSON.stringify(projectItemsList));
+      
+      // Afficher la liste
+      log("=== Ta Sélection ===", "#00FFFF");
+      items.forEach((item, index) => {
+        const typeName = item.type === 1 ? "Clip" :
+                        item.type === 2 ? "Dossier" :
+                        item.type === 3 ? "Séquence" : "Autre";
+        log(`  ${index + 1}. ID: ${item.id} | Nom: ${item.name} | Type: ${typeName}`, "#FFFFFF");
+      });
+      
+      return items;
+    } else {
+      log("❌ Aucune sélection trouvée. Sélectionne des éléments dans le panneau Projet d'abord.", "red");
       return [];
     }
 
-    log(`=== Éléments sélectionnés dans le Projet (${items.length}) ===`, "#00FFFF");
-    
-    // Sauvegarder la liste globale
-    projectItemsList = items;
-    localStorage.setItem("tagmaster-project-items", JSON.stringify(projectItemsList));
-
-    // Afficher les éléments
-    items.forEach((item, index) => {
-      const typeName = item.type === 1 ? "Clip" :
-                      item.type === 2 ? "Dossier" :
-                      item.type === 3 ? "Séquence" : "Autre";
-      log(`  ${index + 1}. ID: ${item.id} | Nom: ${item.name} | Type: ${typeName}`, "#FFFFFF");
-    });
-
-    return items;
-
   } catch (error) {
     log(`❌ Erreur: ${error.message}`, "red");
-    console.error("Erreur dans listAllProjectItems:", error);
+    console.error("Erreur dans listSelectedProjectItems:", error);
     return [];
   }
 }
@@ -214,21 +126,17 @@ async function showTagClips(tagText) {
       return;
     }
 
-    // Utiliser la liste sauvegardée ou lister la sélection actuelle
-    let allItems = projectItemsList.length > 0 ? projectItemsList : await listProjectSelection();
-    
-    if (allItems.length === 0) {
-      log("Aucun élément trouvé. Utilisez d'abord 'Lister la Sélection'.", "#FF9900");
+    // Utiliser la liste sauvegardée
+    if (projectItemsList.length === 0) {
+      log("Aucun élément en mémoire. Utilisez d'abord 'Lister ma Sélection'.", "#FF9900");
       return;
     }
 
     const clipsWithTag = [];
 
-    for (const item of allItems) {
+    for (const item of projectItemsList) {
       if (item.type === 1) { // Type 1 = Clip
         try {
-          // Récupérer le ProjectItem complet pour accéder à getMetadata
-          const project = await ppro.Project.getActiveProject();
           const projectItem = await project.getProjectItemById(item.id);
           if (projectItem) {
             const metadata = await projectItem.getMetadata();
@@ -253,6 +161,71 @@ async function showTagClips(tagText) {
   } catch (error) {
     log(`Erreur : ${error.message}`, "red");
     console.error("Erreur dans showTagClips :", error);
+  }
+}
+
+// Appliquer le tag aux clips sélectionnés
+async function applyTagToClips(index) {
+  const selectedTag = tags[index];
+  if (!selectedTag) return;
+
+  log(`Application du tag "${selectedTag.text}"...`, "#FFFF00");
+
+  try {
+    const project = await ppro.Project.getActiveProject();
+    if (!project) {
+      log("❌ Aucun projet actif.", "red");
+      return;
+    }
+
+    // Récupérer la sélection actuelle
+    const selection = await project.getSelection();
+    
+    if (!selection || selection.length === 0) {
+      log("❌ Aucune sélection trouvée. Sélectionnez des clips dans le panneau Projet.", "red");
+      return;
+    }
+
+    log(`✅ ${selection.length} éléments sélectionnés.`, "#00FF00");
+
+    // Appliquer le tag aux clips uniques
+    const uniqueClips = new Map();
+    for (const item of selection) {
+      if (item.type === 1) { // Type 1 = Clip
+        if (!uniqueClips.has(item.name)) {
+          uniqueClips.set(item.name, item);
+        }
+      }
+    }
+
+    if (uniqueClips.size === 0) {
+      log("❌ Aucun clip trouvé dans la sélection.", "red");
+      return;
+    }
+
+    // Écrire les métadonnées
+    for (const [clipName, projectItem] of uniqueClips) {
+      let metadata = await projectItem.getMetadata() || {};
+      const currentTags = metadata["tag-master"] || "";
+      const updatedTags = currentTags ? `${currentTags}, ${selectedTag.text}` : selectedTag.text;
+      metadata["tag-master"] = updatedTags;
+
+      try {
+        await projectItem.setMetadata(metadata);
+        clipTags[clipName] = updatedTags;
+        log(`✅ Tag "${selectedTag.text}" ajouté à ${clipName}`, "#00FF00");
+      } catch (error) {
+        log(`❌ Erreur setMetadata pour ${clipName}: ${error.message}`, "red");
+        console.error("Erreur setMetadata:", error);
+      }
+    }
+
+    saveTags();
+    log("🎉 Tagging terminé!", "#00FFFF");
+
+  } catch (error) {
+    log(`❌ Erreur: ${error.message}`, "red");
+    console.error("Erreur dans applyTagToClips:", error);
   }
 }
 
@@ -311,77 +284,6 @@ function updateTags() {
   });
 }
 
-// Appliquer le tag aux clips sélectionnés
-async function applyTagToClips(index) {
-  const selectedTag = tags[index];
-  if (!selectedTag) return;
-
-  log(`Application du tag "${selectedTag.text}"...`, "#FFFF00");
-
-  try {
-    // 1. Récupérer la sélection actuelle
-    const selection = await listProjectSelection();
-    
-    if (selection.length === 0) {
-      log("❌ Aucune sélection trouvée. Sélectionnez des clips dans le projet ou la timeline.", "red");
-      return;
-    }
-
-    log(`✅ ${selection.length} éléments sélectionnés.`, "#00FF00");
-
-    // 2. Appliquer le tag aux clips uniques
-    const uniqueClips = new Map();
-    for (const item of selection) {
-      try {
-        // Si c'est déjà un ProjectItem de type Clip
-        if (item.id && item.name && item.type === 1) {
-          if (!uniqueClips.has(item.name)) {
-            uniqueClips.set(item.name, item);
-          }
-        }
-        // Si c'est un TrackItem, récupérer le ProjectItem
-        else if (typeof item.getProjectItem === 'function') {
-          const projectItem = await item.getProjectItem();
-          if (projectItem && projectItem.type === 1 && !uniqueClips.has(projectItem.name)) {
-            uniqueClips.set(projectItem.name, projectItem);
-          }
-        }
-      } catch (error) {
-        console.error("Erreur getProjectItem:", error);
-      }
-    }
-
-    if (uniqueClips.size === 0) {
-      log("❌ Aucun clip valide trouvé dans la sélection.", "red");
-      return;
-    }
-
-    // 3. Écrire les métadonnées
-    for (const [clipName, projectItem] of uniqueClips) {
-      let metadata = await projectItem.getMetadata() || {};
-      const currentTags = metadata["tag-master"] || "";
-      const updatedTags = currentTags ? `${currentTags}, ${selectedTag.text}` : selectedTag.text;
-      metadata["tag-master"] = updatedTags;
-
-      try {
-        await projectItem.setMetadata(metadata);
-        clipTags[clipName] = updatedTags;
-        log(`✅ Tag "${selectedTag.text}" ajouté à ${clipName}`, "#00FF00");
-      } catch (error) {
-        log(`❌ Erreur setMetadata pour ${clipName}: ${error.message}`, "red");
-        console.error("Erreur setMetadata:", error);
-      }
-    }
-
-    saveTags();
-    log("🎉 Tagging terminé!", "#00FFFF");
-
-  } catch (error) {
-    log(`❌ Erreur: ${error.message}`, "red");
-    console.error("Erreur dans applyTagToClips:", error);
-  }
-}
-
 // Initialisation
 document.addEventListener("DOMContentLoaded", () => {
   console.log("Tag-Master chargé");
@@ -392,18 +294,18 @@ document.addEventListener("DOMContentLoaded", () => {
   const buttonContainer = document.querySelector("#tagsContainer").parentElement;
   if (!buttonContainer) return;
 
-  // Bouton Lister la Sélection (pour le panneau Projet)
-  const btnListSelection = document.createElement("button");
-  btnListSelection.textContent = "Lister la Sélection du Projet";
-  btnListSelection.style.margin = "10px";
-  btnListSelection.style.padding = "8px";
-  btnListSelection.style.backgroundColor = "#FF9800";
-  btnListSelection.style.color = "#fff";
-  btnListSelection.style.border = "none";
-  btnListSelection.style.borderRadius = "4px";
-  btnListSelection.style.cursor = "pointer";
-  btnListSelection.addEventListener("click", listAllProjectItems);
-  buttonContainer.appendChild(btnListSelection);
+  // Bouton Lister ma Sélection (NOUVELLE VERSION SIMPLE)
+  const btnListSelected = document.createElement("button");
+  btnListSelected.textContent = "Lister ma Sélection";
+  btnListSelected.style.margin = "10px";
+  btnListSelected.style.padding = "8px";
+  btnListSelected.style.backgroundColor = "#2196F3";
+  btnListSelected.style.color = "#fff";
+  btnListSelected.style.border = "none";
+  btnListSelected.style.borderRadius = "4px";
+  btnListSelected.style.cursor = "pointer";
+  btnListSelected.addEventListener("click", listSelectedProjectItems);
+  buttonContainer.appendChild(btnListSelected);
 
   // Bouton Ajouter Tag
   const addTagBtn = document.getElementById("addTagBtn");
