@@ -367,7 +367,7 @@ async function tryMethod3(sequence) {
   return trackItems;
 }
 
-// MÉTHODE 4: Tous les clips de la séquence (fallback)
+// MÉTHODE 4: Tous les clips de la séquence (via videoTracks/audioTracks)
 async function tryMethod4(sequence) {
   const videoTracks = sequence.videoTracks || [];
   const audioTracks = sequence.audioTracks || [];
@@ -382,9 +382,64 @@ async function tryMethod4(sequence) {
   }
 
   if (trackItems.length === 0) {
-    throw new Error("Aucun clip trouvé dans la séquence");
+    throw new Error("Aucun clip trouvé dans la séquence (via tracks)");
   }
   return trackItems;
+}
+
+// MÉTHODE 5: sequence.getTrackItems() directement
+async function tryMethod5(sequence) {
+  if (typeof sequence.getTrackItems !== 'function') {
+    throw new Error("sequence.getTrackItems n'est pas une fonction");
+  }
+  const trackItems = await sequence.getTrackItems();
+  if (!trackItems || trackItems.length === 0) {
+    throw new Error("Aucun clip trouvé via sequence.getTrackItems()");
+  }
+  return trackItems;
+}
+
+// MÉTHODE 6: sequence.clips (si disponible)
+async function tryMethod6(sequence) {
+  if (!sequence.clips || !Array.isArray(sequence.clips) || sequence.clips.length === 0) {
+    throw new Error("sequence.clips n'est pas disponible ou vide");
+  }
+  return sequence.clips;
+}
+
+// MÉTHODE 7: Récupérer tous les clips du projet et filtrer ceux dans la séquence
+async function tryMethod7(sequence, project) {
+  const projectItems = await project.getProjectItems();
+  const clipsInProject = projectItems.filter(item => item.type === 1); // Type 1 = Clip
+  
+  if (clipsInProject.length === 0) {
+    throw new Error("Aucun clip trouvé dans le projet");
+  }
+  
+  // Si on ne peut pas filtrer par séquence, on retourne tous les clips
+  log("⚠️ Impossible de filtrer par séquence, application à tous les clips du projet", "#FF9900");
+  return clipsInProject.map(clip => ({ 
+    getProjectItem: async () => clip,
+    name: clip.name 
+  }));
+}
+
+// MÉTHODE 8: Via l'API legacy (pour les anciennes versions)
+async function tryMethod8(sequence) {
+  // Essayer d'accéder aux clips via des propriétés alternatives
+  const possibleProperties = [
+    'trackItems', 'allTrackItems', 'videoTrackItems', 'audioTrackItems',
+    'items', 'allItems', 'children', 'elements'
+  ];
+  
+  for (const prop of possibleProperties) {
+    if (sequence[prop] && Array.isArray(sequence[prop]) && sequence[prop].length > 0) {
+      log(`✅ Trouvé via sequence.${prop} (${sequence[prop].length} éléments)`, "#00FF00");
+      return sequence[prop];
+    }
+  }
+  
+  throw new Error("Aucune propriété alternative trouvée");
 }
 
 // Appliquer le tag aux clips sélectionnés
@@ -392,7 +447,8 @@ async function applyTagToClips(index) {
   const selectedTag = tags[index];
   if (!selectedTag) return;
 
-  log(`Application du tag "${selectedTag.text}"...`, "#FFFF00");
+  log(`⚡ DEBUT applyTagToClips - Tag: "${selectedTag.text}"`, "#FFFF00");
+  log(`📌 Version du code: NOUVELLE (avec 8 méthodes)`, "#00FFFF");
 
   try {
     const project = await ppro.Project.getActiveProject();
@@ -407,12 +463,18 @@ async function applyTagToClips(index) {
       return;
     }
 
+    log(`🎬 Séquence active: ${sequence.name || 'Sans nom'}`, "#00FFFF");
+
     // TABLEAU DES MÉTHODES À ESSAYER (dans l'ordre)
     const methods = [
       { name: "Méthode 1: sequence.getSelection().getTrackItems()", func: tryMethod1 },
       { name: "Méthode 2: ppro.app.getSelection()", func: tryMethod2 },
       { name: "Méthode 3: Parcourir les pistes", func: tryMethod3 },
-      { name: "Méthode 4: Tous les clips de la séquence", func: tryMethod4 }
+      { name: "Méthode 4: Tous les clips via tracks", func: tryMethod4 },
+      { name: "Méthode 5: sequence.getTrackItems()", func: tryMethod5 },
+      { name: "Méthode 6: sequence.clips", func: tryMethod6 },
+      { name: "Méthode 7: Tous les clips du projet", func: tryMethod7 },
+      { name: "Méthode 8: Propriétés alternatives", func: tryMethod8 }
     ];
 
     let trackItems = [];
@@ -432,15 +494,19 @@ async function applyTagToClips(index) {
 
     if (trackItems.length === 0) {
       log("❌ Aucune méthode n'a permis de récupérer les clips.", "red");
+      log("💡 Essayez de sélectionner explicitement des clips dans la timeline.", "#FFFF00");
       return;
     }
+
+    log(`📋 ${trackItems.length} clips à taguer`, "#00FFFF");
 
     const uniqueClips = new Map();
     for (const trackItem of trackItems) {
       try {
-        const projectItem = await trackItem.getProjectItem();
+        const projectItem = trackItem.getProjectItem ? await trackItem.getProjectItem() : trackItem;
         if (projectItem && !uniqueClips.has(projectItem.name)) {
           uniqueClips.set(projectItem.name, projectItem);
+          log(`  🎞️  Clip trouvé: ${projectItem.name}`, "#FFFFFF");
         }
       } catch (error) {
         console.error("Erreur lors de la récupération du projectItem:", error);
@@ -451,6 +517,8 @@ async function applyTagToClips(index) {
       log("❌ Aucun clip valide trouvé.", "red");
       return;
     }
+
+    log(`✅ ${uniqueClips.size} clips uniques à taguer`, "#00FF00");
 
     for (const [clipName, projectItem] of uniqueClips) {
       let metadata = {};
@@ -475,16 +543,17 @@ async function applyTagToClips(index) {
         try {
           await projectItem.setMetadata(metadata);
           clipTags[clipName] = updatedTags;
-          log(`✅ Tag ajouté à ${clipName} (métadonnées mises à jour)`, "#00FF00");
+          log(`✅ Tag "${selectedTag.text}" ajouté à ${clipName}`, "#00FF00");
         } catch (error) {
           log(`❌ Erreur lors de l'écriture des métadonnées pour ${clipName}: ${error.message}`, "red");
           console.error("Erreur setMetadata:", error);
         }
       } else {
-        log(`⚠️ Tag déjà présent pour ${clipName}`, "#FF9900");
+        log(`⚠️ Tag "${selectedTag.text}" déjà présent pour ${clipName}`, "#FF9900");
       }
     }
     saveTags();
+    log(`🎉 Tagging terminé!`, "#00FFFF");
   } catch (error) {
     log(`❌ Erreur principale : ${error.message}`, "red");
     console.error("Erreur complète dans applyTagToClips:", error);
