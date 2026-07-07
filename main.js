@@ -4,6 +4,7 @@
  * - https://developer.adobe.com/premiere-pro/uxp/ppro-reference/classes/Project/
  * - https://developer.adobe.com/premiere-pro/uxp/ppro-reference/classes/ProjectItem/
  * - https://developer.adobe.com/premiere-pro/uxp/ppro-reference/classes/ProjectItemSelection/
+ * - https://developer.adobe.com/premiere-pro/uxp/ppro-reference/classes/Sequence/
  *************************************************************************/
 
 const ppro = require("premierepro");
@@ -68,24 +69,6 @@ function deleteTag(index) {
   log(`Tag "${tagToDelete.text}" supprimé.`, "#FF0000");
 }
 
-// Fonction récursive pour collecter tous les items (Version Officielle 26.0.1)
-async function collectAllItemsRecursively(item, allItems) {
-  if (!allItems.some(existing => existing.name === item.name && existing.type === item.type)) {
-    allItems.push(item);
-  }
-
-  if (item.type === 2 && typeof item.getChildren === 'function') { // Dossier (type 2)
-    try {
-      const children = await item.getChildren(); // Méthode officielle
-      for (const child of children) {
-        await collectAllItemsRecursively(child, allItems);
-      }
-    } catch (error) {
-      console.error(`Erreur avec getChildren pour ${item.name}:`, error);
-    }
-  }
-}
-
 // Afficher les clips avec un tag spécifique (Version Officielle 26.0.1)
 async function showTagClips(tagText) {
   try {
@@ -97,27 +80,30 @@ async function showTagClips(tagText) {
       return;
     }
 
-    // Méthode OFFICIELLE : getRootProjectItem() + parcours récursif
-    const rootItem = await project.getRootProjectItem();
-    if (!rootItem) {
-      log("❌ Impossible de récupérer le projet racine.", "red");
-      return;
-    }
-
-    const allItems = [];
-    await collectAllItemsRecursively(rootItem, allItems);
-
-    // Filtrer les clips et vérifier leurs tags
+    // Méthode alternative: Parcourir toutes les séquences
+    const sequences = await project.getSequences();
     const clipsWithTag = [];
-    for (const item of allItems) {
-      if (item.type === 1) { // Type 1 = Clip
-        try {
-          const metadata = await item.getMetadata(); // Méthode officielle
-          if (metadata?.["tag-master"]?.includes(tagText)) {
-            clipsWithTag.push(item);
+
+    for (const sequence of sequences) {
+      const videoTracks = sequence.videoTracks || [];
+      const audioTracks = sequence.audioTracks || [];
+
+      for (const track of [...videoTracks, ...audioTracks]) {
+        if (typeof track.getTrackItems === 'function') {
+          const trackItems = await track.getTrackItems();
+          for (const trackItem of trackItems) {
+            try {
+              const projectItem = await trackItem.getProjectItem();
+              if (projectItem && projectItem.type === 1) { // Type 1 = Clip
+                const metadata = await projectItem.getMetadata();
+                if (metadata?.["tag-master"]?.includes(tagText)) {
+                  clipsWithTag.push(projectItem);
+                }
+              }
+            } catch (error) {
+              console.error("Erreur lors de la vérification du tag:", error);
+            }
           }
-        } catch (error) {
-          console.error(`Erreur lecture métadonnées pour ${item.name}:`, error);
         }
       }
     }
@@ -149,19 +135,71 @@ async function listProjectItems() {
 
     log(`Projet : ${project.name}`, "#00FFFF");
 
-    // Méthode OFFICIELLE pour 26.0.1 : getRootProjectItem() + getChildren()
-    const rootItem = await project.getRootProjectItem();
-    if (!rootItem) {
-      log("❌ Impossible de récupérer le projet racine.", "red");
-      return;
+    // Méthode alternative 1: Essayer getSequences()
+    let allItems = [];
+    if (typeof project.getSequences === 'function') {
+      const sequences = await project.getSequences();
+      log(`🎬 ${sequences.length} séquences trouvées`, "#00FFFF");
+
+      for (const sequence of sequences) {
+        // Ajouter la séquence à la liste
+        allItems.push({
+          name: sequence.name,
+          type: 3, // Type 3 = Séquence
+          isSequence: true
+        });
+
+        // Parcourir les pistes vidéo et audio
+        const videoTracks = sequence.videoTracks || [];
+        const audioTracks = sequence.audioTracks || [];
+        log(`  📽️  ${videoTracks.length} pistes vidéo, ${audioTracks.length} pistes audio`, "#FFFFFF");
+
+        for (const track of [...videoTracks, ...audioTracks]) {
+          if (typeof track.getTrackItems === 'function') {
+            const trackItems = await track.getTrackItems();
+            for (const trackItem of trackItems) {
+              try {
+                const projectItem = await trackItem.getProjectItem();
+                if (projectItem && !allItems.some(item => item.name === projectItem.name)) {
+                  allItems.push(projectItem);
+                }
+              } catch (error) {
+                console.error("Erreur getProjectItem:", error);
+              }
+            }
+          }
+        }
+      }
     }
 
-    // Parcourir récursivement tous les éléments
-    const allItems = [];
-    await collectAllItemsRecursively(rootItem, allItems);
+    // Méthode alternative 2: Si getSequences ne fonctionne pas, essayer la séquence active
+    if (allItems.length === 0) {
+      log("⚠️ getSequences() non disponible, essayons la séquence active...", "#FF9900");
+      const activeSequence = await project.getActiveSequence();
+      if (activeSequence) {
+        const videoTracks = activeSequence.videoTracks || [];
+        const audioTracks = activeSequence.audioTracks || [];
+
+        for (const track of [...videoTracks, ...audioTracks]) {
+          if (typeof track.getTrackItems === 'function') {
+            const trackItems = await track.getTrackItems();
+            for (const trackItem of trackItems) {
+              try {
+                const projectItem = await trackItem.getProjectItem();
+                if (projectItem && !allItems.some(item => item.name === projectItem.name)) {
+                  allItems.push(projectItem);
+                }
+              } catch (error) {
+                console.error("Erreur getProjectItem:", error);
+              }
+            }
+          }
+        }
+      }
+    }
 
     if (allItems.length === 0) {
-      log("Aucun élément trouvé.", "#FF9900");
+      log("❌ Aucune méthode n'a permis de récupérer les éléments du projet.", "red");
       return;
     }
 
@@ -170,9 +208,9 @@ async function listProjectItems() {
 
     // Afficher les clips et leurs tags
     for (const item of allItems) {
-      if (item.type === 1) { // Clip (type 1)
+      if (item.type === 1) { // Clip
         try {
-          const metadata = await item.getMetadata(); // Méthode officielle
+          const metadata = await item.getMetadata();
           if (metadata?.["tag-master"]) {
             clipTags[item.name] = metadata["tag-master"];
             log(`📁 ${item.name} → Tags: ${metadata["tag-master"]}`, "#00FFFF");
@@ -182,9 +220,7 @@ async function listProjectItems() {
         } catch (error) {
           console.error(`Erreur lecture métadonnées pour ${item.name}:`, error);
         }
-      } else if (item.type === 2) { // Dossier (type 2)
-        log(`📂 ${item.name} (Dossier)`, "#FF9800");
-      } else if (item.type === 3) { // Séquence (type 3)
+      } else if (item.type === 3) { // Séquence
         log(`🎬 ${item.name} (Séquence)`, "#2196F3");
       }
     }
@@ -259,7 +295,6 @@ function updateTags() {
 }
 
 // Appliquer le tag aux clips sélectionnés (Version Officielle pour 26.0.1)
-// Basé sur : https://developer.adobe.com/premiere-pro/uxp/ppro-reference/classes/ProjectItemSelection/
 async function applyTagToClips(index) {
   const selectedTag = tags[index];
   if (!selectedTag) return;
@@ -300,12 +335,26 @@ async function applyTagToClips(index) {
       log(`✅ ${trackItems.length} clips dans la séquence (fallback: sequence.getTrackItems())`, "#00FF00");
     }
 
+    // 4. Fallback ultime: Parcourir les pistes de la séquence active
+    if (trackItems.length === 0) {
+      const videoTracks = sequence.videoTracks || [];
+      const audioTracks = sequence.audioTracks || [];
+      log(`⚠️ Fallback ultime: Parcours des ${videoTracks.length + audioTracks.length} pistes`, "#FF9900");
+
+      for (const track of [...videoTracks, ...audioTracks]) {
+        if (typeof track.getTrackItems === 'function') {
+          const items = await track.getTrackItems();
+          trackItems.push(...items);
+        }
+      }
+    }
+
     if (trackItems.length === 0) {
       log("❌ Aucun clip trouvé. Sélectionnez des clips dans la timeline.", "red");
       return;
     }
 
-    // 4. Appliquer le tag aux clips uniques
+    // 5. Appliquer le tag aux clips uniques
     const uniqueClips = new Map();
     for (const trackItem of trackItems) {
       try {
@@ -323,7 +372,7 @@ async function applyTagToClips(index) {
       return;
     }
 
-    // 5. Écrire les métadonnées (méthodes officielles)
+    // 6. Écrire les métadonnées (méthodes officielles)
     for (const [clipName, projectItem] of uniqueClips) {
       let metadata = await projectItem.getMetadata() || {}; // Méthode officielle
       const currentTags = metadata["tag-master"] || "";
