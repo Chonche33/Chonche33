@@ -1,9 +1,12 @@
 {
-  "id": "Test-mq6xlf",
-  "name": "Tag-Master",
+  "id": "Tag-Master-v2",
+  "name": "Tag Master",
   "shortname": "tagmaster",
-  "version": "1.0.0",
-  "main": "index.html",
+  "version": "2.0.0",
+  "description": "Organisez vos clips Premiere Pro avec des tags et des dossiers automatiques.",
+  "author": "Patrick-Olivier Rattis",
+  "homepage": "https://github.com/Chonche33/Chonche33",
+  "main": "assets/index.html",
   "host": {
     "app": "premierepro",
     "minVersion": "26.0.1"
@@ -17,25 +20,11 @@
     {
       "id": "tagmasterpanel",
       "type": "panel",
-      "minimumSize": {
-        "width": 300,
-        "height": 400
-      },
-      "maximumSize": {
-        "width": 800,
-        "height": 800
-      },
-      "preferredDockedSize": {
-        "width": 300,
-        "height": 400
-      },
-      "preferredFloatingSize": {
-        "width": 400,
-        "height": 500
-      },
-      "label": {
-        "default": "Tag-Master"
-      },
+      "minimumSize": { "width": 300, "height": 400 },
+      "maximumSize": { "width": 800, "height": 800 },
+      "preferredDockedSize": { "width": 300, "height": 400 },
+      "preferredFloatingSize": { "width": 400, "height": 500 },
+      "label": { "default": "Tag Master" },
       "icons": [
         {
           "width": 23,
@@ -62,6 +51,28 @@
       "scale": [1, 2],
       "theme": ["darkest", "dark", "medium", "lightest", "light", "all"],
       "species": ["pluginList"]
+    }
+  ],
+  "commands": [
+    {
+      "id": "applyTag1",
+      "title": "Appliquer Tag 1",
+      "shortcut": "Ctrl+1"
+    },
+    {
+      "id": "applyTag2",
+      "title": "Appliquer Tag 2",
+      "shortcut": "Ctrl+2"
+    },
+    {
+      "id": "applyTag3",
+      "title": "Appliquer Tag 3",
+      "shortcut": "Ctrl+3"
+    },
+    {
+      "id": "refreshClips",
+      "title": "Rafraîchir les clips",
+      "shortcut": "Ctrl+R"
     }
   ]
 }

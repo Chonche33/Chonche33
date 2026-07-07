@@ -1,16 +1,24 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <script src="main.js"></script>
-    <link rel="stylesheet" href="style.css" />
-  </head>
-  <body>
-    <h4 id="plugin-heading">Tag-Master</h4>
-    <div class="main-div">
-      <!-- Section pour les tags -->
-      <div class="tag-section">
-        <div class="input-group">
-          <input type="text" id="tagText" placeholder="Texte du tag" />
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tag Master</title>
+  <link rel="stylesheet" href="assets/styles/main.css" />
+  <script type="module" src="src/index.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <h1>Tag Master</h1>
+    </header>
+
+    <main class="app-main">
+      <!-- Section pour ajouter un tag -->
+      <section class="tag-form">
+        <h2>Ajouter un tag</h2>
+        <div class="form-group">
+          <input type="text" id="tagName" placeholder="Nom du tag" autocomplete="off" />
           <select id="tagColor">
             <option value="#FF0000">Rouge</option>
             <option value="#00FF00">Vert</option>
@@ -20,20 +28,34 @@
             <option value="#00FFFF">Cyan</option>
             <option value="#FFA500">Orange</option>
             <option value="#800080">Violet</option>
-            <option value="#A52A2A">Marron</option>
-            <option value="#808080">Gris</option>
           </select>
-          <button id="addTagBtn">Ajouter le tag</button>
+          <button id="addTagBtn" class="btn btn-primary">Ajouter</button>
         </div>
-        <div id="tagsContainer" class="tags-container"></div>
-      </div>
+      </section>
 
-      <!-- Section pour les logs et infos du projet -->
-      <div id="plugin-body"></div>
-    </div>
-    <footer>
-      <button id="btnPopulate">Populate Application Info</button>
-      <button id="clear-btn">Clear Application Info</button>
-    </footer>
-  </body>
+      <!-- Liste des tags -->
+      <section class="tag-list">
+        <h2>Mes tags</h2>
+        <div id="tagsContainer" class="tags-grid"></div>
+      </section>
+
+      <!-- Section pour les clips -->
+      <section class="clip-section">
+        <h2>Clips du projet</h2>
+        <div class="clip-actions">
+          <button id="refreshClipsBtn" class="btn btn-secondary">Rafraîchir</button>
+          <button id="organizeClipsBtn" class="btn btn-primary">Organiser les clips</button>
+        </div>
+        <div id="clipsContainer" class="clips-grid"></div>
+      </section>
+
+      <!-- Console de logs -->
+      <section class="log-console">
+        <h2>Journal</h2>
+        <div id="logContainer" class="log-messages"></div>
+        <button id="clearLogsBtn" class="btn btn-tertiary">Effacer</button>
+      </section>
+    </main>
+  </div>
+</body>
 </html>

@@ -1,20 +1,32 @@
 {
   "name": "tag-master",
-  "version": "1.0.0",
-  "description": "Un plugin pour Adobe Premiere Pro permettant de créer et appliquer des tags personnalisés avec des raccourcis clavier.",
-  "author": "patrick-olivier Rattis",
+  "version": "2.0.0",
+  "description": "Plugin UXP pour organiser les clips Premiere Pro avec des tags et des dossiers automatiques.",
+  "author": "Patrick-Olivier Rattis <votre@email.com>",
   "license": "MIT",
+  "homepage": "https://github.com/Chonche33/Chonche33#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Chonche33/Chonche33.git"
+  },
+  "main": "assets/index.html",
+  "type": "module",
+  "scripts": {
+    "start": "uxp run",
+    "dev": "uxp run --watch",
+    "build": "echo \"No build step required for UXP\"",
+    "test": "echo \"No tests yet...\""
+  },
   "keywords": [
     "premiere-pro",
     "uxp",
     "plugin",
     "tags",
     "markers",
-    "shortcuts"
+    "organization",
+    "folders"
   ],
-  "homepage": "",
-  "repository": {
-    "type": "git",
-    "url": ""
+  "devDependencies": {
+    "eslint": "^8.56.0"
   }
 }
