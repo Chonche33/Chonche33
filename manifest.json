@@ -1,8 +1,8 @@
 {
-  "id": "Test-mq6xlf",
+  "id": "Tag-Master-v2-366148d",
   "name": "Tag-Master",
   "shortname": "tagmaster",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "main": "index.html",
   "host": {
     "app": "premierepro",
