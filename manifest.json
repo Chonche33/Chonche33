@@ -11,7 +11,9 @@
   "manifestVersion": 5,
   "requiredPermissions": {
     "localFileSystem": "request",
-    "clipboard": "readAndWrite"
+    "clipboard": "readAndWrite",
+    "project": "readAndWrite",
+    "metadata": "readAndWrite"
   },
   "entrypoints": [
     {
