@@ -1,5 +1,5 @@
 /*************************************************************************
- * Tag-Master Plugin for Premiere Pro (Version avec ProjectUtils.getSelection)
+ * Tag-Master Plugin for Premiere Pro (Version corrigée avec ProjectUtils)
  * Basé sur la documentation officielle Adobe UXP:
  * https://developer.adobe.com/premiere-pro/uxp/ppro-reference/classes/ProjectUtils/#getselection
  *************************************************************************/
@@ -67,7 +67,7 @@ function deleteTag(index) {
 }
 
 // Fonction pour lister les éléments sélectionnés dans le panneau Projet
-// Utilise ProjectUtils.getSelection() - Méthode officielle Adobe UXP
+// Utilise ProjectUtils.getSelection(project) - Méthode officielle Adobe UXP
 // Documentation: https://developer.adobe.com/premiere-pro/uxp/ppro-reference/classes/ProjectUtils/#getselection
 async function listSelectedProjectItems() {
   try {
@@ -78,13 +78,13 @@ async function listSelectedProjectItems() {
       return [];
     }
 
-    // 2. Utiliser ProjectUtils.getSelection() (méthode officielle Adobe)
+    // 2. Utiliser ProjectUtils.getSelection(project) - CORRIGÉ: avec paramètre project
     let selection = [];
     if (typeof ppro.ProjectUtils !== 'undefined' && typeof ppro.ProjectUtils.getSelection === 'function') {
-      selection = await ppro.ProjectUtils.getSelection();
+      selection = await ppro.ProjectUtils.getSelection(project); // ✅ Paramètre project ajouté
       log(`✅ ${selection.length} éléments sélectionnés (ProjectUtils.getSelection).`, "#00FF00");
     }
-    // Fallback: ppro.app.getSelection() si ProjectUtils n'est pas disponible
+    // Fallback: ppro.app.getSelection() (ne nécessite pas de paramètre)
     else if (typeof ppro.app?.getSelection === 'function') {
       selection = await ppro.app.getSelection();
       log(`✅ ${selection.length} éléments sélectionnés (ppro.app.getSelection).`, "#00FF00");
@@ -188,13 +188,13 @@ async function applyTagToClips(index) {
       return;
     }
 
-    // Utiliser ProjectUtils.getSelection() (méthode officielle Adobe)
+    // Utiliser ProjectUtils.getSelection(project) - CORRIGÉ: avec paramètre project
     let selection = [];
     if (typeof ppro.ProjectUtils?.getSelection === 'function') {
-      selection = await ppro.ProjectUtils.getSelection();
+      selection = await ppro.ProjectUtils.getSelection(project); // ✅ Paramètre project ajouté
       log(`✅ ${selection.length} éléments sélectionnés (ProjectUtils.getSelection).`, "#00FF00");
     }
-    // Fallback: ppro.app.getSelection()
+    // Fallback: ppro.app.getSelection() (ne nécessite pas de paramètre)
     else if (typeof ppro.app?.getSelection === 'function') {
       selection = await ppro.app.getSelection();
       log(`✅ ${selection.length} éléments sélectionnés (ppro.app.getSelection).`, "#00FF00");
@@ -311,7 +311,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const buttonContainer = document.querySelector("#tagsContainer").parentElement;
   if (!buttonContainer) return;
 
-  // Bouton Lister ma Sélection (utilise ProjectUtils.getSelection)
+  // Bouton Lister ma Sélection (utilise ProjectUtils.getSelection(project))
   const btnListSelected = document.createElement("button");
   btnListSelected.textContent = "Lister ma Sélection";
   btnListSelected.style.margin = "10px";
