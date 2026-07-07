@@ -318,6 +318,75 @@ function updateTags() {
   });
 }
 
+// MÉTHODE 1: sequence.getSelection().getTrackItems()
+async function tryMethod1(sequence) {
+  if (typeof sequence.getSelection !== 'function') {
+    throw new Error("getSelection n'est pas une fonction");
+  }
+  const selection = sequence.getSelection();
+  if (typeof selection.getTrackItems !== 'function') {
+    throw new Error("getTrackItems n'est pas une fonction");
+  }
+  return await selection.getTrackItems();
+}
+
+// MÉTHODE 2: ppro.app.getSelection()
+async function tryMethod2(sequence, project) {
+  if (typeof ppro.app === 'undefined' || typeof ppro.app.getSelection !== 'function') {
+    throw new Error("ppro.app.getSelection n'est pas disponible");
+  }
+  const selection = await ppro.app.getSelection();
+  if (!selection || selection.length === 0) {
+    throw new Error("Aucune sélection trouvée");
+  }
+  return selection.filter(item =>
+    item && (item.type === "TrackItem" || (item.getProjectItem && typeof item.getProjectItem === 'function'))
+  );
+}
+
+// MÉTHODE 3: Parcourir les pistes et filtrer les items sélectionnés
+async function tryMethod3(sequence) {
+  const videoTracks = sequence.videoTracks || [];
+  const audioTracks = sequence.audioTracks || [];
+  const allTracks = [...videoTracks, ...audioTracks];
+  const trackItems = [];
+
+  for (const track of allTracks) {
+    if (track && typeof track.getTrackItems === 'function') {
+      const items = await track.getTrackItems();
+      const selectedItems = items.filter(item =>
+        item && (item.isSelected === true || item.selected === true)
+      );
+      trackItems.push(...selectedItems);
+    }
+  }
+
+  if (trackItems.length === 0) {
+    throw new Error("Aucun clip sélectionné trouvé");
+  }
+  return trackItems;
+}
+
+// MÉTHODE 4: Tous les clips de la séquence (fallback)
+async function tryMethod4(sequence) {
+  const videoTracks = sequence.videoTracks || [];
+  const audioTracks = sequence.audioTracks || [];
+  const allTracks = [...videoTracks, ...audioTracks];
+  const trackItems = [];
+
+  for (const track of allTracks) {
+    if (track && typeof track.getTrackItems === 'function') {
+      const items = await track.getTrackItems();
+      trackItems.push(...items);
+    }
+  }
+
+  if (trackItems.length === 0) {
+    throw new Error("Aucun clip trouvé dans la séquence");
+  }
+  return trackItems;
+}
+
 // Appliquer le tag aux clips sélectionnés
 async function applyTagToClips(index) {
   const selectedTag = tags[index];
@@ -338,84 +407,31 @@ async function applyTagToClips(index) {
       return;
     }
 
-    // NOUVELLE MÉTHODE : Récupérer les clips sélectionnés dans la timeline
+    // TABLEAU DES MÉTHODES À ESSAYER (dans l'ordre)
+    const methods = [
+      { name: "Méthode 1: sequence.getSelection().getTrackItems()", func: tryMethod1 },
+      { name: "Méthode 2: ppro.app.getSelection()", func: tryMethod2 },
+      { name: "Méthode 3: Parcourir les pistes", func: tryMethod3 },
+      { name: "Méthode 4: Tous les clips de la séquence", func: tryMethod4 }
+    ];
+
     let trackItems = [];
-    
-    // Méthode 1: Essayer via sequence.getSelection()
-    if (typeof sequence.getSelection === 'function') {
+    for (const method of methods) {
       try {
-        const selection = sequence.getSelection();
-        if (selection && typeof selection.getTrackItems === 'function') {
-          trackItems = await selection.getTrackItems();
+        log(`🔍 Essayons : ${method.name}`, "#00FFFF");
+        trackItems = await method.func(sequence, project);
+        if (trackItems && trackItems.length > 0) {
+          log(`✅ ${method.name} a fonctionné (${trackItems.length} clips trouvés)`, "#00FF00");
+          break; // On arrête dès qu'une méthode fonctionne
         }
       } catch (error) {
-        console.log("Méthode 1 échouée, essayons la méthode 2...");
-      }
-    }
-    
-    // Méthode 2: Essayer via ppro.app.getSelection()
-    if (trackItems.length === 0 && typeof ppro.app !== 'undefined' && typeof ppro.app.getSelection === 'function') {
-      try {
-        const selection = await ppro.app.getSelection();
-        if (selection && selection.length > 0) {
-          trackItems = selection.filter(item => 
-            item && 
-            (item.type === "TrackItem" || 
-             (item.getProjectItem && typeof item.getProjectItem === 'function'))
-          );
-        }
-      } catch (error) {
-        console.log("Méthode 2 échouée, essayons la méthode 3...");
-      }
-    }
-    
-    // Méthode 3: Récupérer tous les track items de la séquence et vérifier la sélection
-    if (trackItems.length === 0) {
-      try {
-        // Récupérer toutes les pistes vidéo et audio
-        const videoTracks = sequence.videoTracks || [];
-        const audioTracks = sequence.audioTracks || [];
-        const allTracks = [...videoTracks, ...audioTracks];
-        
-        for (const track of allTracks) {
-          if (track && typeof track.getTrackItems === 'function') {
-            const items = await track.getTrackItems();
-            // Filtrer les items sélectionnés (si la propriété exists)
-            const selectedItems = items.filter(item => 
-              item && (item.isSelected === true || item.selected === true)
-            );
-            trackItems = [...trackItems, ...selectedItems];
-          }
-        }
-      } catch (error) {
-        console.log("Méthode 3 échouée:", error);
-      }
-    }
-    
-    // Méthode 4: Si toujours rien, prendre tous les clips de la séquence
-    if (trackItems.length === 0) {
-      try {
-        const videoTracks = sequence.videoTracks || [];
-        const audioTracks = sequence.audioTracks || [];
-        const allTracks = [...videoTracks, ...audioTracks];
-        
-        for (const track of allTracks) {
-          if (track && typeof track.getTrackItems === 'function') {
-            const items = await track.getTrackItems();
-            trackItems = [...trackItems, ...items];
-          }
-        }
-        
-        if (trackItems.length > 0) {
-          log("⚠️ Aucun clip explicitement sélectionné. Application du tag à TOUS les clips de la séquence.", "#FF9900");
-        }
-      } catch (error) {
-        console.log("Méthode 4 échouée:", error);
+        log(`❌ ${method.name} a échoué: ${error.message}`, "#FF9900");
+        console.error(`Erreur ${method.name}:`, error);
       }
     }
 
     if (trackItems.length === 0) {
-      log("❌ Aucun clip trouvé dans la séquence. Sélectionne des clips dans la timeline.", "red");
+      log("❌ Aucune méthode n'a permis de récupérer les clips.", "red");
       return;
     }
 
@@ -437,7 +453,6 @@ async function applyTagToClips(index) {
     }
 
     for (const [clipName, projectItem] of uniqueClips) {
-      // Lire les métadonnées existantes
       let metadata = {};
       try {
         const existingMetadata = await projectItem.getMetadata();
@@ -448,21 +463,17 @@ async function applyTagToClips(index) {
         console.log("Aucune métadonnée existante, création d'un nouvel objet.");
       }
       
-      // Créer un champ personnalisé pour les tags si inexistant
       if (!metadata["tag-master"]) {
         metadata["tag-master"] = "";
       }
 
-      // Ajouter le nouveau tag
       let currentTags = metadata["tag-master"];
       if (!currentTags.includes(selectedTag.text)) {
         const updatedTags = currentTags ? `${currentTags}, ${selectedTag.text}` : selectedTag.text;
         metadata["tag-master"] = updatedTags;
 
-        // Écrire les métadonnées mises à jour
         try {
           await projectItem.setMetadata(metadata);
-          // Mettre à jour le cache local
           clipTags[clipName] = updatedTags;
           log(`✅ Tag ajouté à ${clipName} (métadonnées mises à jour)`, "#00FF00");
         } catch (error) {
@@ -475,7 +486,7 @@ async function applyTagToClips(index) {
     }
     saveTags();
   } catch (error) {
-    log(`❌ Erreur : ${error.message}`, "red");
+    log(`❌ Erreur principale : ${error.message}`, "red");
     console.error("Erreur complète dans applyTagToClips:", error);
   }
 }
