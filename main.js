@@ -1,5 +1,5 @@
 /*************************************************************************
- * Tag-Master Plugin for Premiere Pro (Version avec bouton de sélection manuelle)
+ * Tag-Master Plugin for Premiere Pro (Version avec sélection du panneau Projet)
  * Basé sur la documentation Adobe UXP
  *************************************************************************/
 
@@ -65,51 +65,11 @@ function deleteTag(index) {
   log(`Tag "${tagToDelete.text}" supprimé.`, "#FF0000");
 }
 
-// Fonction pour lister la sélection ACTUELLE dans le projet
-async function listCurrentSelection() {
-  try {
-    const project = await ppro.Project.getActiveProject();
-    if (!project) {
-      log("❌ Aucun projet actif.", "red");
-      return [];
-    }
-
-    log("🔍 Récupération de la sélection actuelle...", "#00FFFF");
-
-    // Méthode 1: Essayer ppro.app.getSelection() (sélection globale)
-    if (typeof ppro.app?.getSelection === 'function') {
-      const selection = await ppro.app.getSelection();
-      if (selection && selection.length > 0) {
-        log(`✅ ${selection.length} éléments sélectionnés (méthode globale).`, "#00FF00");
-        return processSelection(selection);
-      }
-    }
-
-    // Méthode 2: Essayer via la séquence active
-    const sequence = await project.getActiveSequence();
-    if (sequence && typeof sequence.getSelection === 'function') {
-      const selection = sequence.getSelection();
-      if (selection && selection.trackItems) {
-        log(`✅ ${selection.trackItems.length} clips sélectionnés dans la timeline.`, "#00FF00");
-        return processSelection(selection.trackItems);
-      }
-    }
-
-    log("❌ Aucune sélection trouvée. Sélectionnez des éléments dans le projet ou la timeline.", "red");
-    return [];
-
-  } catch (error) {
-    log(`❌ Erreur: ${error.message}`, "red");
-    console.error("Erreur dans listCurrentSelection:", error);
-    return [];
-  }
-}
-
 // Fonction pour traiter la sélection (quel que soit le type)
 async function processSelection(selection) {
   const items = [];
 
-  // Si selection est un tableau (ppro.app.getSelection)
+  // Si selection est un tableau (ppro.app.getSelection ou project.getSelection)
   if (Array.isArray(selection)) {
     for (const item of selection) {
       try {
@@ -144,18 +104,83 @@ async function processSelection(selection) {
   return items;
 }
 
+// Fonction pour lister les éléments sélectionnés dans le PANNEAU PROJET
+async function listProjectSelection() {
+  try {
+    const project = await ppro.Project.getActiveProject();
+    if (!project) {
+      log("❌ Aucun projet actif.", "red");
+      return [];
+    }
+
+    log("🔍 Récupération de la sélection du panneau Projet...", "#00FFFF");
+
+    // Méthode 1: Essayer project.getSelection() (sélection du panneau Projet)
+    if (typeof project.getSelection === 'function') {
+      const selection = await project.getSelection();
+      if (selection && selection.length > 0) {
+        log(`✅ ${selection.length} éléments sélectionnés dans le panneau Projet.`, "#00FF00");
+        return processSelection(selection);
+      }
+    }
+
+    // Méthode 2: Essayer ppro.app.getProjectSelection() (si disponible)
+    if (typeof ppro.app?.getProjectSelection === 'function') {
+      const selection = await ppro.app.getProjectSelection();
+      if (selection && selection.length > 0) {
+        log(`✅ ${selection.length} éléments sélectionnés (méthode getProjectSelection).`, "#00FF00");
+        return processSelection(selection);
+      }
+    }
+
+    // Méthode 3: Essayer ppro.app.getSelection() (sélection globale)
+    if (typeof ppro.app?.getSelection === 'function') {
+      const selection = await ppro.app.getSelection();
+      if (selection && selection.length > 0) {
+        log(`✅ ${selection.length} éléments sélectionnés (méthode globale).`, "#00FF00");
+        return processSelection(selection);
+      }
+    }
+
+    // Méthode 4: Essayer via la séquence active
+    const sequence = await project.getActiveSequence();
+    if (sequence && typeof sequence.getSelection === 'function') {
+      const selection = sequence.getSelection();
+      if (selection && selection.trackItems) {
+        log(`✅ ${selection.trackItems.length} clips sélectionnés dans la timeline.`, "#00FF00");
+        return processSelection(selection.trackItems);
+      }
+    }
+
+    // Méthode 5: Essayer project.getProjectItems() (si disponible)
+    if (typeof project.getProjectItems === 'function') {
+      const allItems = await project.getProjectItems();
+      log(`✅ ${allItems.length} éléments dans le projet (getProjectItems).`, "#00FF00");
+      return allItems.map(item => ({ id: item.id, name: item.name, type: item.type }));
+    }
+
+    log("❌ Aucune méthode n'a permis de récupérer la sélection. Sélectionnez des éléments dans le panneau Projet ou la timeline.", "red");
+    return [];
+
+  } catch (error) {
+    log(`❌ Erreur: ${error.message}`, "red");
+    console.error("Erreur dans listProjectSelection:", error);
+    return [];
+  }
+}
+
 // Fonction pour lister TOUS les éléments du projet via sélection manuelle
 async function listAllProjectItems() {
   try {
-    log("📌 Veuillez sélectionner TOUS les éléments dans le panneau Projet (Ctrl+A ou Cmd+A), puis cliquez ici.", "#FFFF00");
-    const items = await listCurrentSelection();
+    log("📌 Veuillez sélectionner TOUS les éléments dans le PANNEAU PROJET (Ctrl+A/Cmd+A), puis cliquez ici.", "#FFFF00");
+    const items = await listProjectSelection();
     
     if (items.length === 0) {
       log("❌ Aucune sélection trouvée. Sélectionnez des éléments d'abord.", "red");
       return [];
     }
 
-    log(`=== Éléments sélectionnés (${items.length}) ===`, "#00FFFF");
+    log(`=== Éléments sélectionnés dans le Projet (${items.length}) ===`, "#00FFFF");
     
     // Sauvegarder la liste globale
     projectItemsList = items;
@@ -190,7 +215,7 @@ async function showTagClips(tagText) {
     }
 
     // Utiliser la liste sauvegardée ou lister la sélection actuelle
-    let allItems = projectItemsList.length > 0 ? projectItemsList : await listCurrentSelection();
+    let allItems = projectItemsList.length > 0 ? projectItemsList : await listProjectSelection();
     
     if (allItems.length === 0) {
       log("Aucun élément trouvé. Utilisez d'abord 'Lister la Sélection'.", "#FF9900");
@@ -295,7 +320,7 @@ async function applyTagToClips(index) {
 
   try {
     // 1. Récupérer la sélection actuelle
-    const selection = await listCurrentSelection();
+    const selection = await listProjectSelection();
     
     if (selection.length === 0) {
       log("❌ Aucune sélection trouvée. Sélectionnez des clips dans le projet ou la timeline.", "red");
@@ -308,7 +333,7 @@ async function applyTagToClips(index) {
     const uniqueClips = new Map();
     for (const item of selection) {
       try {
-        // Si c'est déjà un ProjectItem
+        // Si c'est déjà un ProjectItem de type Clip
         if (item.id && item.name && item.type === 1) {
           if (!uniqueClips.has(item.name)) {
             uniqueClips.set(item.name, item);
@@ -367,9 +392,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const buttonContainer = document.querySelector("#tagsContainer").parentElement;
   if (!buttonContainer) return;
 
-  // Bouton Lister la Sélection
+  // Bouton Lister la Sélection (pour le panneau Projet)
   const btnListSelection = document.createElement("button");
-  btnListSelection.textContent = "Lister la Sélection";
+  btnListSelection.textContent = "Lister la Sélection du Projet";
   btnListSelection.style.margin = "10px";
   btnListSelection.style.padding = "8px";
   btnListSelection.style.backgroundColor = "#FF9800";
