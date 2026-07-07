@@ -1,7 +1,7 @@
 /*************************************************************************
- * Tag-Master Plugin for Premiere Pro (Version corrigée avec ProjectUtils)
- * Basé sur la documentation officielle Adobe UXP:
- * https://developer.adobe.com/premiere-pro/uxp/ppro-reference/classes/ProjectUtils/#getselection
+ * Tag-Master Plugin for Premiere Pro (Version finale)
+ * Détecte les éléments ALREADY SELECTIONNÉS dans le panneau Projet
+ * Affiche la liste avec ID, name, type
  *************************************************************************/
 
 const ppro = require("premierepro");
@@ -66,9 +66,8 @@ function deleteTag(index) {
   log(`Tag "${tagToDelete.text}" supprimé.`, "#FF0000");
 }
 
-// Fonction pour lister les éléments sélectionnés dans le panneau Projet
-// Utilise ProjectUtils.getSelection(project) - Méthode officielle Adobe UXP
-// Documentation: https://developer.adobe.com/premiere-pro/uxp/ppro-reference/classes/ProjectUtils/#getselection
+// Fonction pour lister les éléments ALREADY SELECTIONNÉS dans le panneau Projet
+// Affiche la liste avec ID, name, type
 async function listSelectedProjectItems() {
   try {
     // 1. Récupérer le projet actif
@@ -78,49 +77,73 @@ async function listSelectedProjectItems() {
       return [];
     }
 
-    // 2. Utiliser ProjectUtils.getSelection(project) - CORRIGÉ: avec paramètre project
+    // 2. Récupérer TA sélection ACTUELLE (sans forcer la sélection)
+    //    On essaie 3 méthodes dans l'ordre jusqu'à ce que l'une fonctionne
     let selection = [];
-    if (typeof ppro.ProjectUtils !== 'undefined' && typeof ppro.ProjectUtils.getSelection === 'function') {
-      selection = await ppro.ProjectUtils.getSelection(project); // ✅ Paramètre project ajouté
-      log(`✅ ${selection.length} éléments sélectionnés (ProjectUtils.getSelection).`, "#00FF00");
-    }
-    // Fallback: ppro.app.getSelection() (ne nécessite pas de paramètre)
-    else if (typeof ppro.app?.getSelection === 'function') {
-      selection = await ppro.app.getSelection();
-      log(`✅ ${selection.length} éléments sélectionnés (ppro.app.getSelection).`, "#00FF00");
+
+    // Méthode 1: ProjectUtils.getSelection(project) (méthode officielle)
+    if (typeof ppro.ProjectUtils?.getSelection === 'function') {
+      try {
+        selection = await ppro.ProjectUtils.getSelection(project);
+        log(`✅ Méthode 1: ${selection.length} éléments (ProjectUtils.getSelection).`, "#00FF00");
+      } catch (error) {
+        log(`❌ Méthode 1 échouée: ${error.message}`, "#FF9900");
+      }
     }
 
-    // 3. Si la sélection existe et n'est pas vide
+    // Méthode 2: ppro.app.getSelection() (sélection globale)
+    if (selection.length === 0 && typeof ppro.app?.getSelection === 'function') {
+      try {
+        selection = await ppro.app.getSelection();
+        log(`✅ Méthode 2: ${selection.length} éléments (ppro.app.getSelection).`, "#00FF00");
+      } catch (error) {
+        log(`❌ Méthode 2 échouée: ${error.message}`, "#FF9900");
+      }
+    }
+
+    // Méthode 3: project.getSelection() (si disponible)
+    if (selection.length === 0 && typeof project.getSelection === 'function') {
+      try {
+        selection = await project.getSelection();
+        log(`✅ Méthode 3: ${selection.length} éléments (project.getSelection).`, "#00FF00");
+      } catch (error) {
+        log(`❌ Méthode 3 échouée: ${error.message}`, "#FF9900");
+      }
+    }
+
+    // 3. Si on a une sélection, la traiter
     if (selection && selection.length > 0) {
-      // Retourner les éléments avec id, name, type
-      const items = selection.map(item => ({
-        id: item.id,
-        name: item.name,
-        type: item.type
-      }));
-      
+      // Filtrer pour ne garder que les éléments avec id, name, type
+      const items = selection.filter(item => item && item.id && item.name && item.type)
+                           .map(item => ({
+                             id: item.id,
+                             name: item.name,
+                             type: item.type
+                           }));
+
       // Sauvegarder la liste globale
       projectItemsList = items;
       localStorage.setItem("tagmaster-project-items", JSON.stringify(projectItemsList));
-      
+
       // Afficher la liste
-      log("=== Ta Sélection ===", "#00FFFF");
+      log(`=== Ta Sélection dans le Projet (${items.length}) ===`, "#00FFFF");
       items.forEach((item, index) => {
         const typeName = item.type === 1 ? "Clip" :
                         item.type === 2 ? "Dossier" :
                         item.type === 3 ? "Séquence" : "Autre";
         log(`  ${index + 1}. ID: ${item.id} | Nom: ${item.name} | Type: ${typeName}`, "#FFFFFF");
       });
-      
+
       return items;
-    } else {
-      log("❌ Aucune sélection trouvée. Sélectionnez des éléments dans le panneau Projet d'abord.", "red");
-      return [];
     }
 
+    // 4. Si aucune méthode n'a fonctionné
+    log("❌ Aucune méthode n'a détecté ta sélection. Vérifie que tu as bien sélectionné des éléments dans le panneau Projet.", "red");
+    return [];
+
   } catch (error) {
-    log(`❌ Erreur: ${error.message}`, "red");
-    console.error("Erreur dans listSelectedProjectItems:", error);
+    log(`❌ Erreur inattendue: ${error.message}`, "red");
+    console.error("Erreur complète:", error);
     return [];
   }
 }
@@ -188,16 +211,37 @@ async function applyTagToClips(index) {
       return;
     }
 
-    // Utiliser ProjectUtils.getSelection(project) - CORRIGÉ: avec paramètre project
+    // Récupérer TA sélection ACTUELLE (sans forcer la sélection)
     let selection = [];
+
+    // Méthode 1: ProjectUtils.getSelection(project)
     if (typeof ppro.ProjectUtils?.getSelection === 'function') {
-      selection = await ppro.ProjectUtils.getSelection(project); // ✅ Paramètre project ajouté
-      log(`✅ ${selection.length} éléments sélectionnés (ProjectUtils.getSelection).`, "#00FF00");
+      try {
+        selection = await ppro.ProjectUtils.getSelection(project);
+        log(`✅ Méthode 1: ${selection.length} éléments (ProjectUtils.getSelection).`, "#00FF00");
+      } catch (error) {
+        log(`❌ Méthode 1 échouée: ${error.message}`, "#FF9900");
+      }
     }
-    // Fallback: ppro.app.getSelection() (ne nécessite pas de paramètre)
-    else if (typeof ppro.app?.getSelection === 'function') {
-      selection = await ppro.app.getSelection();
-      log(`✅ ${selection.length} éléments sélectionnés (ppro.app.getSelection).`, "#00FF00");
+
+    // Méthode 2: ppro.app.getSelection()
+    if (selection.length === 0 && typeof ppro.app?.getSelection === 'function') {
+      try {
+        selection = await ppro.app.getSelection();
+        log(`✅ Méthode 2: ${selection.length} éléments (ppro.app.getSelection).`, "#00FF00");
+      } catch (error) {
+        log(`❌ Méthode 2 échouée: ${error.message}`, "#FF9900");
+      }
+    }
+
+    // Méthode 3: project.getSelection()
+    if (selection.length === 0 && typeof project.getSelection === 'function') {
+      try {
+        selection = await project.getSelection();
+        log(`✅ Méthode 3: ${selection.length} éléments (project.getSelection).`, "#00FF00");
+      } catch (error) {
+        log(`❌ Méthode 3 échouée: ${error.message}`, "#FF9900");
+      }
     }
 
     if (!selection || selection.length === 0) {
@@ -311,7 +355,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const buttonContainer = document.querySelector("#tagsContainer").parentElement;
   if (!buttonContainer) return;
 
-  // Bouton Lister ma Sélection (utilise ProjectUtils.getSelection(project))
+  // Bouton Lister ma Sélection
   const btnListSelected = document.createElement("button");
   btnListSelected.textContent = "Lister ma Sélection";
   btnListSelected.style.margin = "10px";
