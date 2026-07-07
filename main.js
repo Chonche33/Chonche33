@@ -1,5 +1,9 @@
 /*************************************************************************
  * Tag-Master Plugin for Premiere Pro (Version Officielle pour 26.0.1)
+ * Basé sur la documentation Adobe UXP :
+ * - https://developer.adobe.com/premiere-pro/uxp/ppro-reference/classes/Project/
+ * - https://developer.adobe.com/premiere-pro/uxp/ppro-reference/classes/ProjectItem/
+ * - https://developer.adobe.com/premiere-pro/uxp/ppro-reference/classes/ProjectItemSelection/
  *************************************************************************/
 
 const ppro = require("premierepro");
@@ -70,9 +74,9 @@ async function collectAllItemsRecursively(item, allItems) {
     allItems.push(item);
   }
 
-  if (item.type === 2 && typeof item.getChildren === 'function') { // Dossier
+  if (item.type === 2 && typeof item.getChildren === 'function') { // Dossier (type 2)
     try {
-      const children = await item.getChildren();
+      const children = await item.getChildren(); // Méthode officielle
       for (const child of children) {
         await collectAllItemsRecursively(child, allItems);
       }
@@ -108,7 +112,7 @@ async function showTagClips(tagText) {
     for (const item of allItems) {
       if (item.type === 1) { // Type 1 = Clip
         try {
-          const metadata = await item.getMetadata();
+          const metadata = await item.getMetadata(); // Méthode officielle
           if (metadata?.["tag-master"]?.includes(tagText)) {
             clipsWithTag.push(item);
           }
@@ -166,9 +170,9 @@ async function listProjectItems() {
 
     // Afficher les clips et leurs tags
     for (const item of allItems) {
-      if (item.type === 1) { // Clip
+      if (item.type === 1) { // Clip (type 1)
         try {
-          const metadata = await item.getMetadata();
+          const metadata = await item.getMetadata(); // Méthode officielle
           if (metadata?.["tag-master"]) {
             clipTags[item.name] = metadata["tag-master"];
             log(`📁 ${item.name} → Tags: ${metadata["tag-master"]}`, "#00FFFF");
@@ -178,9 +182,9 @@ async function listProjectItems() {
         } catch (error) {
           console.error(`Erreur lecture métadonnées pour ${item.name}:`, error);
         }
-      } else if (item.type === 2) { // Dossier
+      } else if (item.type === 2) { // Dossier (type 2)
         log(`📂 ${item.name} (Dossier)`, "#FF9800");
-      } else if (item.type === 3) { // Séquence
+      } else if (item.type === 3) { // Séquence (type 3)
         log(`🎬 ${item.name} (Séquence)`, "#2196F3");
       }
     }
@@ -255,6 +259,7 @@ function updateTags() {
 }
 
 // Appliquer le tag aux clips sélectionnés (Version Officielle pour 26.0.1)
+// Basé sur : https://developer.adobe.com/premiere-pro/uxp/ppro-reference/classes/ProjectItemSelection/
 async function applyTagToClips(index) {
   const selectedTag = tags[index];
   if (!selectedTag) return;
@@ -278,19 +283,21 @@ async function applyTagToClips(index) {
     log(`🎬 Séquence active: ${sequence.name || 'Sans nom'}`, "#00FFFF");
 
     // 2. Récupérer la sélection OFFICIELLE (26.0.1)
+    // Documentation : https://developer.adobe.com/premiere-pro/uxp/ppro-reference/classes/ProjectItemSelection/
     let trackItems = [];
     if (typeof sequence.getSelection === 'function') {
-      const selection = sequence.getSelection();
-      if (selection && selection.trackItems) { // ✅ Propriété officielle
+      const selection = sequence.getSelection(); // Retourne un objet Selection
+      // ✅ selection.trackItems est une PROPRIÉTÉ (pas une méthode !)
+      if (selection && Array.isArray(selection.trackItems)) {
         trackItems = selection.trackItems;
-        log(`✅ ${trackItems.length} clips sélectionnés (méthode officielle)`, "#00FF00");
+        log(`✅ ${trackItems.length} clips sélectionnés (méthode officielle: selection.trackItems)`, "#00FF00");
       }
     }
 
-    // 3. Si aucun clip sélectionné, prendre tous les clips de la séquence
+    // 3. Fallback: Tous les clips de la séquence (si aucun n'est sélectionné)
     if (trackItems.length === 0 && typeof sequence.getTrackItems === 'function') {
-      trackItems = await sequence.getTrackItems();
-      log(`✅ ${trackItems.length} clips dans la séquence (fallback)`, "#00FF00");
+      trackItems = await sequence.getTrackItems(); // Méthode officielle
+      log(`✅ ${trackItems.length} clips dans la séquence (fallback: sequence.getTrackItems())`, "#00FF00");
     }
 
     if (trackItems.length === 0) {
@@ -302,7 +309,7 @@ async function applyTagToClips(index) {
     const uniqueClips = new Map();
     for (const trackItem of trackItems) {
       try {
-        const projectItem = await trackItem.getProjectItem();
+        const projectItem = await trackItem.getProjectItem(); // Méthode officielle
         if (projectItem && !uniqueClips.has(projectItem.name)) {
           uniqueClips.set(projectItem.name, projectItem);
         }
@@ -316,24 +323,15 @@ async function applyTagToClips(index) {
       return;
     }
 
-    // 5. Écrire les métadonnées
+    // 5. Écrire les métadonnées (méthodes officielles)
     for (const [clipName, projectItem] of uniqueClips) {
-      let metadata = {};
-      try {
-        const existingMetadata = await projectItem.getMetadata();
-        if (existingMetadata) {
-          metadata = existingMetadata;
-        }
-      } catch (error) {
-        console.log("Aucune métadonnée existante, création d'un nouvel objet.");
-      }
-      
+      let metadata = await projectItem.getMetadata() || {}; // Méthode officielle
       const currentTags = metadata["tag-master"] || "";
       const updatedTags = currentTags ? `${currentTags}, ${selectedTag.text}` : selectedTag.text;
       metadata["tag-master"] = updatedTags;
 
       try {
-        await projectItem.setMetadata(metadata);
+        await projectItem.setMetadata(metadata); // Méthode officielle
         clipTags[clipName] = updatedTags;
         log(`✅ Tag "${selectedTag.text}" ajouté à ${clipName}`, "#00FF00");
       } catch (error) {
