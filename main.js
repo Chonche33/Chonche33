@@ -1,6 +1,7 @@
 /*************************************************************************
- * Tag-Master Plugin for Premiere Pro (Version corrigée)
- * Utilise ppro.app.getSelection() au lieu de project.getSelection()
+ * Tag-Master Plugin for Premiere Pro (Version avec ProjectUtils.getSelection)
+ * Basé sur la documentation officielle Adobe UXP:
+ * https://developer.adobe.com/premiere-pro/uxp/ppro-reference/classes/ProjectUtils/#getselection
  *************************************************************************/
 
 const ppro = require("premierepro");
@@ -65,7 +66,9 @@ function deleteTag(index) {
   log(`Tag "${tagToDelete.text}" supprimé.`, "#FF0000");
 }
 
-// Fonction SIMPLE : Liste UNIQUEMENT les éléments sélectionnés (version corrigée)
+// Fonction pour lister les éléments sélectionnés dans le panneau Projet
+// Utilise ProjectUtils.getSelection() - Méthode officielle Adobe UXP
+// Documentation: https://developer.adobe.com/premiere-pro/uxp/ppro-reference/classes/ProjectUtils/#getselection
 async function listSelectedProjectItems() {
   try {
     // 1. Récupérer le projet actif
@@ -75,13 +78,20 @@ async function listSelectedProjectItems() {
       return [];
     }
 
-    // 2. Récupérer TA sélection avec ppro.app.getSelection() (méthode qui fonctionne)
-    const selection = await ppro.app.getSelection();
+    // 2. Utiliser ProjectUtils.getSelection() (méthode officielle Adobe)
+    let selection = [];
+    if (typeof ppro.ProjectUtils !== 'undefined' && typeof ppro.ProjectUtils.getSelection === 'function') {
+      selection = await ppro.ProjectUtils.getSelection();
+      log(`✅ ${selection.length} éléments sélectionnés (ProjectUtils.getSelection).`, "#00FF00");
+    }
+    // Fallback: ppro.app.getSelection() si ProjectUtils n'est pas disponible
+    else if (typeof ppro.app?.getSelection === 'function') {
+      selection = await ppro.app.getSelection();
+      log(`✅ ${selection.length} éléments sélectionnés (ppro.app.getSelection).`, "#00FF00");
+    }
 
-    // 3. Si la sélection existe et n'est pas vide, la retourner
+    // 3. Si la sélection existe et n'est pas vide
     if (selection && selection.length > 0) {
-      log(`✅ ${selection.length} éléments sélectionnés.`, "#00FF00");
-      
       // Retourner les éléments avec id, name, type
       const items = selection.map(item => ({
         id: item.id,
@@ -104,7 +114,7 @@ async function listSelectedProjectItems() {
       
       return items;
     } else {
-      log("❌ Aucune sélection trouvée. Sélectionne des éléments dans le panneau Projet d'abord.", "red");
+      log("❌ Aucune sélection trouvée. Sélectionnez des éléments dans le panneau Projet d'abord.", "red");
       return [];
     }
 
@@ -178,15 +188,22 @@ async function applyTagToClips(index) {
       return;
     }
 
-    // Récupérer la sélection actuelle avec ppro.app.getSelection()
-    const selection = await ppro.app.getSelection();
-    
+    // Utiliser ProjectUtils.getSelection() (méthode officielle Adobe)
+    let selection = [];
+    if (typeof ppro.ProjectUtils?.getSelection === 'function') {
+      selection = await ppro.ProjectUtils.getSelection();
+      log(`✅ ${selection.length} éléments sélectionnés (ProjectUtils.getSelection).`, "#00FF00");
+    }
+    // Fallback: ppro.app.getSelection()
+    else if (typeof ppro.app?.getSelection === 'function') {
+      selection = await ppro.app.getSelection();
+      log(`✅ ${selection.length} éléments sélectionnés (ppro.app.getSelection).`, "#00FF00");
+    }
+
     if (!selection || selection.length === 0) {
       log("❌ Aucune sélection trouvée. Sélectionnez des clips dans le panneau Projet.", "red");
       return;
     }
-
-    log(`✅ ${selection.length} éléments sélectionnés.`, "#00FF00");
 
     // Appliquer le tag aux clips uniques
     const uniqueClips = new Map();
@@ -294,7 +311,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const buttonContainer = document.querySelector("#tagsContainer").parentElement;
   if (!buttonContainer) return;
 
-  // Bouton Lister ma Sélection (version corrigée avec ppro.app.getSelection)
+  // Bouton Lister ma Sélection (utilise ProjectUtils.getSelection)
   const btnListSelected = document.createElement("button");
   btnListSelected.textContent = "Lister ma Sélection";
   btnListSelected.style.margin = "10px";
