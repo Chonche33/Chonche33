@@ -64,7 +64,25 @@ function deleteTag(index) {
   log(`Tag "${tagToDelete.text}" supprimé.`, "#FF0000");
 }
 
-// Afficher les clips avec un tag spécifique (Version Officielle)
+// Fonction récursive pour collecter tous les items (Version Officielle 26.0.1)
+async function collectAllItemsRecursively(item, allItems) {
+  if (!allItems.some(existing => existing.name === item.name && existing.type === item.type)) {
+    allItems.push(item);
+  }
+
+  if (item.type === 2 && typeof item.getChildren === 'function') { // Dossier
+    try {
+      const children = await item.getChildren();
+      for (const child of children) {
+        await collectAllItemsRecursively(child, allItems);
+      }
+    } catch (error) {
+      console.error(`Erreur avec getChildren pour ${item.name}:`, error);
+    }
+  }
+}
+
+// Afficher les clips avec un tag spécifique (Version Officielle 26.0.1)
 async function showTagClips(tagText) {
   try {
     log(`=== Clips avec le tag "${tagText}" ===`, "#00FFFF");
@@ -75,10 +93,19 @@ async function showTagClips(tagText) {
       return;
     }
 
-    const projectItems = await project.getProjectItems();
-    const clipsWithTag = [];
+    // Méthode OFFICIELLE : getRootProjectItem() + parcours récursif
+    const rootItem = await project.getRootProjectItem();
+    if (!rootItem) {
+      log("❌ Impossible de récupérer le projet racine.", "red");
+      return;
+    }
 
-    for (const item of projectItems) {
+    const allItems = [];
+    await collectAllItemsRecursively(rootItem, allItems);
+
+    // Filtrer les clips et vérifier leurs tags
+    const clipsWithTag = [];
+    for (const item of allItems) {
       if (item.type === 1) { // Type 1 = Clip
         try {
           const metadata = await item.getMetadata();
@@ -105,7 +132,7 @@ async function showTagClips(tagText) {
   }
 }
 
-// Fonction pour lister TOUS les items du projet (Version Officielle)
+// Fonction pour lister TOUS les items du projet (Version Officielle 26.0.1)
 async function listProjectItems() {
   try {
     log("=== Liste des éléments du projet ===", "#00FFFF");
@@ -118,9 +145,27 @@ async function listProjectItems() {
 
     log(`Projet : ${project.name}`, "#00FFFF");
 
-    const projectItems = await project.getProjectItems();
-    
-    for (const item of projectItems) {
+    // Méthode OFFICIELLE pour 26.0.1 : getRootProjectItem() + getChildren()
+    const rootItem = await project.getRootProjectItem();
+    if (!rootItem) {
+      log("❌ Impossible de récupérer le projet racine.", "red");
+      return;
+    }
+
+    // Parcourir récursivement tous les éléments
+    const allItems = [];
+    await collectAllItemsRecursively(rootItem, allItems);
+
+    if (allItems.length === 0) {
+      log("Aucun élément trouvé.", "#FF9900");
+      return;
+    }
+
+    log(`Total : ${allItems.length} éléments`, "#00FFFF");
+    log("--- Structure ---", "#00FFFF");
+
+    // Afficher les clips et leurs tags
+    for (const item of allItems) {
       if (item.type === 1) { // Clip
         try {
           const metadata = await item.getMetadata();
@@ -141,7 +186,7 @@ async function listProjectItems() {
     }
 
     // Sauvegarder la liste
-    projectItemsList = projectItems.map(item => ({
+    projectItemsList = allItems.map(item => ({
       name: item.name,
       type: item.type
     }));
@@ -236,7 +281,7 @@ async function applyTagToClips(index) {
     let trackItems = [];
     if (typeof sequence.getSelection === 'function') {
       const selection = sequence.getSelection();
-      if (selection && selection.trackItems) {
+      if (selection && selection.trackItems) { // ✅ Propriété officielle
         trackItems = selection.trackItems;
         log(`✅ ${trackItems.length} clips sélectionnés (méthode officielle)`, "#00FF00");
       }
