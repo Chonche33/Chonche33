@@ -1,20 +1,7 @@
 {
-  "name": "tag-master",
+  "name": "uxp-template-ps-starter",
   "version": "1.0.0",
-  "description": "Un plugin pour Adobe Premiere Pro permettant de créer et appliquer des tags personnalisés avec des raccourcis clavier.",
-  "author": "patrick-olivier Rattis",
-  "license": "MIT",
-  "keywords": [
-    "premiere-pro",
-    "uxp",
-    "plugin",
-    "tags",
-    "markers",
-    "shortcuts"
-  ],
-  "homepage": "",
-  "repository": {
-    "type": "git",
-    "url": ""
-  }
+  "description": "Starter template for creating Adobe UXP based-Premiere plugin.",
+  "author": "Adobe Inc",
+  "license": "Apache-2.0"
 }
