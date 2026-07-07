@@ -83,7 +83,7 @@ async function AllProjectItems() {
     console.log(`📂 Projet actif: ${project.name}`);
     log(`📂 Projet actif: ${project.name}`, "#00FFFF");
 
-    // 2. Récupérer l'élément racine du projet avec getRootItem() (méthode officielle pour UXP > 25.0)
+    // 2. Récupérer l'élément racine du projet avec getRootItem()
     const rootItem = await project.getRootItem();
     if (!rootItem) {
       console.log("❌ Impossible de récupérer l'élément racine du projet.");
@@ -94,15 +94,25 @@ async function AllProjectItems() {
     console.log(`✅ Élément racine trouvé: ${rootItem.name || 'Projet'}`);
     log(`✅ Élément racine trouvé: ${rootItem.name || 'Projet'}`, "#00FF00");
 
-    // 3. Parcourir récursivement tous les enfants de l'élément racine
+    // 3. Vérifier que rootItem a bien la méthode getChildren
+    if (typeof rootItem.getChildren !== 'function') {
+      console.log("❌ rootItem.getChildren n'est pas une fonction !");
+      log("❌ rootItem.getChildren n'est pas disponible.", "red");
+      return [];
+    }
+
+    // 4. Récupérer les enfants de l'élément racine
+    const children = await rootItem.getChildren();
+    console.log(`📋 ${children.length} enfants trouvés dans l'élément racine.`);
+    log(`📋 ${children.length} enfants trouvés dans l'élément racine.`, "#00FFFF");
+
+    // 5. Parcourir récursivement TOUS les enfants
     const allItems = [];
-    await collectAllItemsRecursively(rootItem, allItems);
+    for (const child of children) {
+      await collectAllItemsRecursively(child, allItems);
+    }
 
-    // 4. Sauvegarder la liste globale
-    projectItemsList = allItems;
-    localStorage.setItem("tagmaster-project-items", JSON.stringify(projectItemsList));
-
-    // 5. Afficher la liste dans les logs du plugin
+    // 6. Afficher la liste
     log(`=== Liste de tous les éléments du projet (${allItems.length}) ===`, "#00FFFF");
     allItems.forEach((item, index) => {
       const typeName = item.type === 1 ? "Clip" :
@@ -110,6 +120,10 @@ async function AllProjectItems() {
                       item.type === 3 ? "Séquence" : "Autre";
       log(`  ${index + 1}. ID: ${item.id} | Nom: ${item.name} | Type: ${typeName}`, "#FFFFFF");
     });
+
+    // 7. Sauvegarder la liste globale
+    projectItemsList = allItems;
+    localStorage.setItem("tagmaster-project-items", JSON.stringify(projectItemsList));
 
     return allItems;
 
@@ -134,16 +148,20 @@ async function collectAllItemsRecursively(item, allItems) {
     type: item.type
   });
 
-  // Si c'est un dossier ou une séquence, parcourir ses enfants
-  if ((item.type === 2 || item.type === 3) && typeof item.getChildren === 'function') {
+  // Vérifier que getChildren existe et est une fonction
+  if (item && typeof item.getChildren === 'function') {
     try {
       const children = await item.getChildren();
+      console.log(`   📁 ${item.name} a ${children.length} enfants.`);
       for (const child of children) {
         await collectAllItemsRecursively(child, allItems);
       }
     } catch (error) {
       console.error(`⚠️ Erreur avec getChildren pour ${item.name}:`, error);
+      log(`⚠️ Erreur avec getChildren pour ${item.name}: ${error.message}`, "#FF9900");
     }
+  } else {
+    console.log(`   ⚠️ ${item.name} (type ${item.type}) n'a pas de méthode getChildren.`);
   }
 }
 
@@ -159,6 +177,7 @@ async function showTagClips(tagText) {
     for (const item of allItems) {
       if (item.type === 1) { // Type 1 = Clip
         try {
+          // Trouver l'objet ProjectItem correspondant
           const projectItem = allItems.find(i => i.id === item.id);
           if (projectItem) {
             // Vérifier si le clip a le tag dans ses métadonnées
