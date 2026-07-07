@@ -1,6 +1,6 @@
 /*************************************************************************
- * Tag-Master Plugin for Premiere Pro (Version simplifiée)
- * Une seule méthode : project.getSelection() pour le panneau Projet
+ * Tag-Master Plugin for Premiere Pro (Version corrigée)
+ * Utilise ppro.app.getSelection() au lieu de project.getSelection()
  *************************************************************************/
 
 const ppro = require("premierepro");
@@ -65,7 +65,7 @@ function deleteTag(index) {
   log(`Tag "${tagToDelete.text}" supprimé.`, "#FF0000");
 }
 
-// Fonction SIMPLE : Liste UNIQUEMENT les éléments sélectionnés dans le panneau Projet
+// Fonction SIMPLE : Liste UNIQUEMENT les éléments sélectionnés (version corrigée)
 async function listSelectedProjectItems() {
   try {
     // 1. Récupérer le projet actif
@@ -75,12 +75,12 @@ async function listSelectedProjectItems() {
       return [];
     }
 
-    // 2. Récupérer TA sélection dans le panneau Projet (1 seule méthode)
-    const selection = await project.getSelection();
+    // 2. Récupérer TA sélection avec ppro.app.getSelection() (méthode qui fonctionne)
+    const selection = await ppro.app.getSelection();
 
     // 3. Si la sélection existe et n'est pas vide, la retourner
     if (selection && selection.length > 0) {
-      log(`✅ ${selection.length} éléments sélectionnés dans le panneau Projet.`, "#00FF00");
+      log(`✅ ${selection.length} éléments sélectionnés.`, "#00FF00");
       
       // Retourner les éléments avec id, name, type
       const items = selection.map(item => ({
@@ -178,8 +178,8 @@ async function applyTagToClips(index) {
       return;
     }
 
-    // Récupérer la sélection actuelle
-    const selection = await project.getSelection();
+    // Récupérer la sélection actuelle avec ppro.app.getSelection()
+    const selection = await ppro.app.getSelection();
     
     if (!selection || selection.length === 0) {
       log("❌ Aucune sélection trouvée. Sélectionnez des clips dans le panneau Projet.", "red");
@@ -294,7 +294,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const buttonContainer = document.querySelector("#tagsContainer").parentElement;
   if (!buttonContainer) return;
 
-  // Bouton Lister ma Sélection (NOUVELLE VERSION SIMPLE)
+  // Bouton Lister ma Sélection (version corrigée avec ppro.app.getSelection)
   const btnListSelected = document.createElement("button");
   btnListSelected.textContent = "Lister ma Sélection";
   btnListSelected.style.margin = "10px";
